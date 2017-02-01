@@ -12,12 +12,7 @@ categories:
 - Newtypes
 ---
 
-Type Wrappers are a way of taking an existing type (like strings, numbers, etc) and wrapping them in _another_ type, both so they can't be confused with other things of the same type, and to represent things like validation in a way that Flow can check. They are variously known as Nominal Type Aliases, [Opaque Type Aliases](https://docs.hhvm.com/hack/type-aliases/opaque), or [Newtypes](https://wiki.haskell.org/Newtype). Let's get to it. 😊
-
-
-## The Motivation for All of This
-
-The idea with tricks/techniques like this is to push as much work as is practical to Flow. The more possibilities for bugs we eliminate, the fewer tests we need to write, and the less overhead we have to deal with when we make changes to our code.
+Type Wrappers are a way of taking an existing type (like strings, numbers, etc) and wrapping them in _another_ type, both so they can't be confused with other things of the same type, and to represent things like validation in a way that Flow can check. They are variously known as Nominal Type Aliases, [Opaque Type Aliases](https://docs.hhvm.com/hack/type-aliases/opaque), or [Newtypes](https://wiki.haskell.org/Newtype)<sup><a href="#note-1">1</a></sup>. Let's get to it. 😊
 
 
 ## Creating and Using a Type Wrapper
@@ -30,6 +25,7 @@ import { TypeWrapper } from 'flow-classy-type-wrapper';
 class Email extends TypeWrapper<string> {}
 
 function validateEmail(x: string): (Email | null) {
+  // Some very simplistic validation here:
   if (x.match(/@/)) {
     return Email.wrap(x);
   }
@@ -97,26 +93,64 @@ sendEmail(email);
 
 We're pretending to accept user input here (a string). With that input, we put it through our validation function, and are made to (by Flow) handle the possibility of the result being `null`. After we've checked that, we know we have an `Email` value. We pass it on to `sendEmail` to use.
 
-So what is this wrapping/unwrapping useful for?
+So what is this type wrapping useful for?
 
 
-## Preventing Mixups
+## Why
 
-Say we have a function that takes two strings:
+### In-line Documentation
+
+The simplest benefit: it's a way of giving names to values of a particular variety, and goes a little way towards providing some documentation that's also checked by Flow.
+
+On a visual level I'd personally say that a function with a signature `sendEmail(from: Email, to: Email, subject: string)` is easier to read than `sendEmail(to: string, from: string, subject: string)`. We also get the benefits of being able to look up what describes or produces an `Email` specifically, instead of any old string.
+
+
+### Preventing Mixups
+
+Say we have a function that takes two strings, and returns a potential user:
 
 ```ts
-function createUser(username: string, password: string): Promise<User> {
+function createUser(email: string, password: string): Promise<User> {
+  // ...
+}
+
+// Just validates and returns a string or null:
+function validateEmail(email: string): (string | null) {
   // ...
 }
 
 // Much later:
-const bob = createUser("bob@example.com", "canhefixit");
+
+// Let's pretend we got this email+password from user input.
+const email = validateEmail("bob@example.com");
+const password = "canhefixit";
+if (email !== null) {
+  const bob = createUser(email, password);
+}
 ```
 
-There's the possibility 
+There's the _possibility_ of getting those strings mixed up, eg. `createUser(password, email)`. It's _unlikely_ in such a simple case, but with more complex ones like `fs.writeFile(string, string, string)` or `fs.writeSync(handle, buffer, number, number, number)` (both from the [Node.js standard library](https://nodejs.org/api/fs.html#fs_fs_writesync_fd_buffer_offset_length_position)), you can see how things can get mixed up if you have a bunch of arguments of the same type.
+
+And yep, you could have them as part of an object with `email` and `password` fields instead, eg. `{ email: string, password: string }`. That helps not mix things up, but the wrapped version of the value is still safe even when _separated_ from that object:
+
+```ts
+const args: { email: string, password: string } =
+  { email: "bob@example.com", password: "abc" };
+
+const email = args.email;
+// ... The type is now just string; we've lost the context.
+```
+
+```ts
+const args: { email: Email, password: string } =
+  { email: Email.wrap("bob@example.com"), password: "abc" };
+
+const email = args.email;
+// ... The type is still Email.
+```
 
 
-## Changing Code
+### Changing Code
 
 We might need to change `createUser` to take a username instead, eg. shifting email off to something a user can add later after signup:
 
@@ -125,35 +159,63 @@ function createUser(username: string, password: string): Promise<User> {
   // ...
 }
 
+function validateEmail(email: string): (string | null) {
+  // ...
+}
+
 // Much later:
-const bob = createUser("bob@example.com", "canhefixit");
+const email = validateEmail("bob@example.com");
+const password = "canhefixit";
+if (email !== null) {
+  const bob = createUser(email, password);
+}
 ```
 
-Uh oh. `bob@example.com` isn't a valid username, and if `createUser` has validation checks for it, it'll blow up if we try to run it. If we have tests for this path through the code, we might have caught this. But what if we use a typed wrapper to make it so that Flow tells us immediately if we change this?
+Uh oh. `bob@example.com` isn't a valid username; suddenly this user creation step fails. Hopefully, if we have tests for this path through the code, we might have caught this. But what if we use a typed wrapper to make it so that Flow tells us *immediately* if we change something like this?
 
 ```ts
-class Email extends TypedWrapper<string> {}
-
-// Before:
+// ---- Before change: takes an Email ----
 function createUser(email: Email, password: string): Promise<User> {
   // ...
 }
-const bob = createUser(Email.wrap("bob@example.com"), "canhefixit");
 
-// After:
-function createUser(username: string, password: string): Promise<User> {
+function validateEmail(email: string): (Email | null) {
   // ...
 }
-const bob = createUser(Email.wrap("bob@example.com"), "canhefixit");
-//                     ^--- Kaboom; not a string.
+
+// Much later:
+const email = validateEmail("bob@example.com"); // type: Email | null
+const password = "canhefixit";
+if (email !== null) {
+  const bob = createUser(email, password);
+}
 ```
 
-This seems a bit simplistic; what if I just blindly email-wrap any string? We have a better way of 
+```
+// ----- After change: takes a Username -----
+function createUser(username: Username, password: string): Promise<User> {
+  // ...
+}
+
+// Much later:
+const email = validateEmail("bob@example.com"); // type: Email | null
+const password = "canhefixit";
+if (email !== null) {
+  const bob = createUser(email, password);
+  // 💥 Boom! 💥
+  // createUser(email, password);
+  //            ^^^^^ Email. This type is incompatible with
+  //                  the expected param type of
+  // function createUser(username: Username, password: string): Promise<User> {
+  //                               ^^^^^^^^ Username
+}
+```
 
 
-## "Gatekeeper" Functions
 
-Remember `validateEmail`?
+### "Gatekeeper" Functions
+
+Lets look at `validateEmail` from above
 
 ```ts
 function validateEmail(x: string): (Email | null) {
@@ -161,7 +223,7 @@ function validateEmail(x: string): (Email | null) {
 }
 ```
 
-We have a function that produces. What if, to make any `Email`s, we had to put everything through the `validateEmail` function?
+We have a function that produces `Email`. What if, to make an `Email`, we had to put the input through the `validateEmail` function?
 
 ```
 // ----- email.js -----
@@ -197,13 +259,12 @@ if (email === null) throw new Error("Invalid email");
 createUser(email, "canhefixit");
 ```
 
-We only export ... , and in doing so, make sure that *any* `Email` values being tossed around our app have been passed through the `validateEmail` function; there's literally no other way to make one without using a backdoor, and we can use [eslint to warn whenever we try to use these](#TODOFlowEslintWeakTypesSetting).
+We only export `validateEmail`, `unwrap` and the `Email` type itself. In doing so, make sure that *any* `Email` values being tossed around our app have been passed through the `validateEmail` function; there's no other way to make one without using an `any` backdoor, and we can use [eslint to warn whenever we try to use these](https://www.npmjs.com/package/eslint-plugin-flowtype#eslint-plugin-flowtype-rules-no-weak-types).
 
 
-## In-line Documentation
+## A Sliding Scale of Safety
 
-One last thing this trick is good for is to assist with documenting parameters and types. So I have a function that takes an `Email`; what is that? Look up the definition. See what functions can return an Email. By describing this sort of flow with the  
-
+As we've just done, you can ratchet up the safety, at the expense of restricting how you construct and use these values. I personally use wrapped types as much as practical, them having saved my butt more than a few times (eg. where a "string" has been passed through a few tiers of functions, to be accidentally mixed up somewhere else). But feel free to use this with some values you want to carefully control, like User IDs, escaped strings, etc.
 
 
 ## So what *are* the Email Values?
@@ -218,7 +279,7 @@ Just strings! "Wrapping" the types never transforms them. The idea of `Email` be
 
 
 
-<small>1. I've intentionally avoided calling this Flow technique "newtyping", mostly because `newtype` lets you do things that we can't with this, eg. `newtype Foo a = Foo (a -> String)`, where it's not a straight "value wrapping".</small>
+<small id="note-1">1. I've intentionally avoided calling this Flow technique "newtyping", mostly because Haskell's `newtype` lets you do things that we can't with this, eg. `newtype Foo a = Foo (a -> String)`, where it's not a straight "value wrapping".</small>
 
 
 
