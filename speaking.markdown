@@ -3,7 +3,7 @@ layout: page
 title: "Speaking"
 ---
 
-Hi! I'm Rob. I enjoy speaking. I mostly give talks at local meetups, but have been lucky to have been invited to a couple of conferences. My usual speaking topics cover [testing](/talks/2016/06/property-based-testing/), [static typing](/talks/2016/07/things-you-cant-do-wdc16/), and [functional programming](/talks/2015/09/composition-and-pipelines/), but have previously switched it up with [ops](https://speakerdeck.com/damncabbage/the-testing-monitoring-continuum-devops-sydney-2015), [security](https://speakerdeck.com/damncabbage/xss-an-introduction-and-demonstration-2009) and [race conditions](https://speakerdeck.com/damncabbage/databases-and-race-conditions-sydphp-2014).
+Hi! I'm Robin. I enjoy speaking. I mostly give talks at local meetups, but have been lucky to have been invited to a couple of conferences. My usual speaking topics cover [testing](/talks/2016/06/property-based-testing/), [static typing](/talks/2016/07/things-you-cant-do-wdc16/), and [functional programming](/talks/2015/09/composition-and-pipelines/), but have previously switched it up with [ops](https://speakerdeck.com/damncabbage/the-testing-monitoring-continuum-devops-sydney-2015), [security](https://speakerdeck.com/damncabbage/xss-an-introduction-and-demonstration-2009) and [race conditions](https://speakerdeck.com/damncabbage/databases-and-race-conditions-sydphp-2014).
 
 The full list is on [the front page](/#talks), but here are some of my more recent recorded talks:
 
