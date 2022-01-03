@@ -44,7 +44,7 @@ excerpt: |
   <img
     class="micro-gallery--item"
     src="/talks/2016/07/things-you-cant-do-wdc16-gallery3.jpg"
-    alt="Rob Howard being a dork on-stage"
+    alt="Robin Howard being a dork on-stage"
   >
   <img
     class="micro-gallery--item"
